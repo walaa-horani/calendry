@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Sanity__list_sanity_rules",
+      "mcp__Sanity__get_sanity_rules",
+      "Bash(pnpm --version)",
+      "Bash(git -C /c/dev/calendry add sanity/schemaTypes/objects/timeInterval.ts)",
+      "Bash(git -C /c/dev/calendry commit -m \"feat\\(sanity\\): add timeInterval object schema\")",
+      "Bash(git -C /c/dev/calendry show 1cec704 --name-status)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const { defineType, defineField } = require\\('c:/dev/calendry/node_modules/sanity'\\); console.log\\(typeof defineType, typeof defineField\\);\")",
+      "Bash(git -C C:/dev/calendry add sanity/schemaTypes/objects/location.ts)",
+      "Bash(git -C C:/dev/calendry commit -m \"feat\\(sanity\\): add location object schema\")",
+      "Bash(git merge *)",
+      "Bash(git cherry-pick *)",
+      "Bash(git reset *)",
+      "Bash(git -C /c/dev/calendry rev-parse --abbrev-ref HEAD)"
+    ]
+  }
+}
