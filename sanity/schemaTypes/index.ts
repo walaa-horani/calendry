@@ -2,6 +2,7 @@ import { type SchemaTypeDefinition } from 'sanity'
 import { userType } from './documents/userType'
 import { availabilityType } from './documents/availabilityType'
 import { meetingType } from './documents/meetingType'
+import { bookingType } from './documents/bookingType'
 
 import { timeInterval } from './objects/timeInterval'
 import { daySchedule } from './objects/daySchedule'
@@ -13,6 +14,7 @@ export const schema: { types: SchemaTypeDefinition[] } = {
     userType,
     availabilityType,
     meetingType,
+    bookingType,
     // Objects
     timeInterval,
     daySchedule,
