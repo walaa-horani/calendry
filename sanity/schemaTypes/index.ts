@@ -3,6 +3,7 @@ import { userType } from './documents/userType'
 import { availabilityType } from './documents/availabilityType'
 import { meetingType } from './documents/meetingType'
 import { bookingType } from './documents/bookingType'
+import { googleCalendarConnectionType } from './documents/googleCalendarConnectionType'
 
 import { timeInterval } from './objects/timeInterval'
 import { daySchedule } from './objects/daySchedule'
@@ -15,6 +16,7 @@ export const schema: { types: SchemaTypeDefinition[] } = {
     availabilityType,
     meetingType,
     bookingType,
+    googleCalendarConnectionType,
     // Objects
     timeInterval,
     daySchedule,
