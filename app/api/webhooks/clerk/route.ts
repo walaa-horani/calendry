@@ -26,7 +26,12 @@ export async function POST(req: NextRequest) {
 
       case 'user.deleted':
         if (evt.data.id) {
-          await serverClient.delete(docIdFor(evt.data.id))
+          const id = evt.data.id
+          await Promise.allSettled([
+            serverClient.delete(`user.${id}`),
+            serverClient.delete(`availability.${id}`),
+            serverClient.delete(`gcal.${id}`),
+          ])
         }
         return Response.json({ ok: true })
 
