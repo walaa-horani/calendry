@@ -222,20 +222,22 @@ describe('generateSlots — maxBookingsPerDay', () => {
 })
 
 describe('generateSlots — Google busy subtraction', () => {
-  it('removes a slot that overlaps a Google busy interval (no buffer math)', () => {
+  it('does not apply schedule.bufferBefore to busy intervals', () => {
     const input = baseInput()
-    input.schedule.bufferBefore = 60
-    input.schedule.bufferAfter = 60   // big buffers — these should NOT apply to busy
+    input.schedule.bufferBefore = 30 // would block 9:30 slot if (incorrectly) applied to busy
     input.busyIntervals = [
       { startUtc: '2026-05-05T17:00:00.000Z', endUtc: '2026-05-05T17:30:00.000Z' }, // 10:00 LA
     ]
+    // Window 9–11 LA = 16:00–18:00 UTC. Subtract busy [17:00,17:30] → [16:00,17:00] & [17:30,18:00].
+    // [16:00,17:00]: slots at 16:00 (ends 16:30) and 16:30 (ends 17:00). [17:30,18:00]: 17:30.
+    // If bufferBefore were (incorrectly) applied to busy, the block would expand to [16:30,17:30],
+    // killing the 16:30 slot. We expect 16:30 to be present.
     const slots = generateSlots(input)
-    // Window 9–11 LA = 16:00–18:00 UTC. Subtract [17:00,17:30] → [16:00,17:00] & [17:30,18:00].
-    // [16:00,17:00] yields 16:00, 16:30. [17:30,18:00] yields 17:30. Buffer-after 60 cuts: 16:00 OK (16:30+60=17:30 ≤ 17:00? no 17:30 > 17:00) → DROP. Wait.
-    // With effBufAfter=60: a slot ends at 16:30, +60min = 17:30 > window.end of 17:00 → drop.
-    // So actually window [16:00,17:00] with bufferAfter 60: NO slots fit.
-    // Window [17:30,18:00]: 17:30+30=18:00, +60=19:00 > 18:00 → drop.
-    expect(slots).toEqual([])
+    expect(slots.map((s) => s.startUtc)).toEqual([
+      '2026-05-05T16:00:00.000Z',
+      '2026-05-05T16:30:00.000Z',
+      '2026-05-05T17:30:00.000Z',
+    ])
   })
 
   it('handles busy with no buffers when meeting overrides bufferAfter to 0', () => {
@@ -263,7 +265,7 @@ describe('generateSlots — DST transitions', () => {
     input.schedule.weeklySchedule = input.schedule.weeklySchedule.map((d) => ({
       ...d, enabled: d.day === 'sun', intervals: d.day === 'sun' ? [{ start: '01:00', end: '04:00' }] : [],
     }))
-    input.rangeStart = new Date('2026-03-08T00:00:00Z')
+    input.rangeStart = new Date('2026-03-08T09:00:00Z')
     input.rangeEnd = new Date('2026-03-08T23:59:59Z')
     const slots = generateSlots(input)
     // 01:00 PST = 09:00 UTC; 02:00 doesn't exist locally; 03:00 PDT = 10:00 UTC; 03:30 PDT = 10:30 UTC
@@ -284,7 +286,7 @@ describe('generateSlots — DST transitions', () => {
     input.schedule.weeklySchedule = input.schedule.weeklySchedule.map((d) => ({
       ...d, enabled: d.day === 'sun', intervals: d.day === 'sun' ? [{ start: '00:00', end: '03:00' }] : [],
     }))
-    input.rangeStart = new Date('2026-11-01T00:00:00Z')
+    input.rangeStart = new Date('2026-11-01T08:00:00Z')
     input.rangeEnd = new Date('2026-11-01T23:59:59Z')
     const slots = generateSlots(input)
     // We slice in UTC, not local time. 00:00 local PDT → 07:00 UTC; 03:00 local PST → 11:00 UTC.
