@@ -124,7 +124,7 @@ export function encrypt(plaintext: string): string {
 export function decrypt(payload: string): string {
   const key = loadKey()
   const buf = Buffer.from(payload, 'base64')
-  if (buf.length < 1 + IV_BYTES + TAG_BYTES + 1) throw new Error('Ciphertext too short')
+  if (buf.length < 1 + IV_BYTES + TAG_BYTES) throw new Error('Ciphertext too short')
   const version = buf[0]
   if (version !== VERSION) throw new Error(`Unknown cipher version: ${version}`)
   const iv = buf.subarray(1, 1 + IV_BYTES)
