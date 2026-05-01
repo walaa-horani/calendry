@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Calendar, Check, RefreshCw, Unlink } from 'lucide-react';
 
 import { disconnectGoogle, refreshCalendarList } from './actions';
-import type { GoogleConnectionPublic, PublicCalendarRef } from './types';
+import type { GoogleConnectionPublic } from './types';
 
 interface BannerInfo {
   tone: 'green' | 'red' | 'slate';
@@ -36,13 +36,11 @@ const TONE_STYLES: Record<BannerInfo['tone'], string> = {
 };
 
 export default function CalendarSettingsTab({ connection }: { connection: GoogleConnectionPublic | null }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialBanner = bannerForParam(searchParams.get('connected'), searchParams.get('reason'));
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [revokedBanner, setRevokedBanner] = useState<string | null>(null);
 
-  const [calendars, setCalendars] = useState<PublicCalendarRef[]>(connection?.calendars ?? []);
   const [disconnectPending, startDisconnectTransition] = useTransition();
   const [refreshPending, startRefreshTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -52,11 +50,11 @@ export default function CalendarSettingsTab({ connection }: { connection: Google
     setRevokedBanner(null);
     startDisconnectTransition(async () => {
       const result = await disconnectGoogle();
-      if (result.ok) {
-        router.refresh();
-      } else {
-        setActionError(result.error);
+      if (!result.ok) {
+        setActionError("Couldn't disconnect. Please try again.");
+        console.error('disconnectGoogle failed:', result.error);
       }
+      // On success: revalidatePath in the action drops the connection prop to null.
     });
   };
 
@@ -66,14 +64,11 @@ export default function CalendarSettingsTab({ connection }: { connection: Google
     startRefreshTransition(async () => {
       const result = await refreshCalendarList();
       if (result.ok) {
-        setCalendars(result.calendars);
-        router.refresh();
+        // Calendar list updates via revalidatePath in the server action.
       } else if (result.error === 'revoked') {
         setRevokedBanner('Your Google connection was revoked. Please reconnect.');
-        router.refresh();
       } else if (result.error === 'missing') {
         setRevokedBanner('Your Google connection is no longer on file. Please reconnect.');
-        router.refresh();
       } else {
         setActionError("Couldn't refresh your calendar list. Please try again.");
       }
@@ -146,7 +141,7 @@ export default function CalendarSettingsTab({ connection }: { connection: Google
                 <div>
                   <h3 className="font-bold text-[#0B3558] text-lg">{connection.googleEmail}</h3>
                   <p className="text-sm text-slate-500 font-medium mt-0.5">
-                    Connected on {new Date(connection.connectedAt).toLocaleDateString()}
+                    Connected on {new Date(connection.connectedAt).toLocaleDateString('en-US', { timeZone: 'UTC' })}
                   </p>
                 </div>
               </div>
@@ -181,7 +176,7 @@ export default function CalendarSettingsTab({ connection }: { connection: Google
             </div>
 
             <ul className="flex flex-col gap-2">
-              {calendars.map((cal) => (
+              {(connection?.calendars ?? []).map((cal) => (
                 <li
                   key={cal.calendarId}
                   className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-xl"
