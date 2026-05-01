@@ -30,7 +30,17 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(pnpm build *)",
       "Bash(echo \"exit=$?\")",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(node -e \"const c=require\\('crypto'\\); const KEY=c.randomBytes\\(32\\); const iv=c.randomBytes\\(12\\); const cip=c.createCipheriv\\('aes-256-gcm',KEY,iv\\); cip.update\\(''\\); cip.final\\(\\); const tag=cip.getAuthTag\\(\\); const payload=Buffer.concat\\([Buffer.from\\([0x01]\\),iv,tag]\\); console.log\\('payload bytes:', payload.length\\)\")",
+      "Bash(git -C /c/dev/calendry status)",
+      "Bash(git -C /c/dev/calendry add sanity/schemaTypes/documents/googleCalendarConnectionType.ts sanity/schemaTypes/index.ts)",
+      "Bash(git -C /c/dev/calendry commit -m \"feat\\(sanity\\): add googleCalendarConnectionType document schema\")",
+      "Bash(dir c:\\\\\\\\dev\\\\\\\\calendry\\\\\\\\docs\\\\\\\\superpowers\\\\\\\\plans c:\\\\\\\\dev\\\\\\\\calendry\\\\\\\\docs\\\\\\\\superpowers\\\\\\\\specs)",
+      "Bash(git -C c:/dev/calendry diff 9ea2d30..7e2f94a --stat)",
+      "Bash(git -C c:/dev/calendry log --oneline 9ea2d30..7e2f94a)",
+      "Bash(git -C c:/dev/calendry show 7e2f94a --stat)",
+      "Bash(npx next *)",
+      "Bash(pnpm lint *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Walaa\\.claude\\projects\\c--dev-calendry\\memory",

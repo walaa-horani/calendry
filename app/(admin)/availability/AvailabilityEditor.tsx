@@ -2,10 +2,12 @@
 
 import React, { useEffect, useState, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Globe, Check, Calendar } from 'lucide-react';
+import { Plus, Trash2, Globe, Check } from 'lucide-react';
 
 import type { AvailabilityDoc, DayCode, DaySchedule } from './types';
+import type { GoogleConnectionPublic } from './calendar/types';
 import { saveSchedules, saveAdvanced, bootstrapTimezoneIfDefault } from './actions';
+import CalendarSettingsTab from './calendar/CalendarSettingsTab';
 
 const DAY_LABELS: Record<DayCode, string> = {
   sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat',
@@ -19,7 +21,13 @@ function makeIntervalKey(): string {
   return crypto.randomUUID();
 }
 
-export default function AvailabilityEditor({ initialData }: { initialData: AvailabilityDoc }) {
+export default function AvailabilityEditor({
+  initialData,
+  googleConnection,
+}: {
+  initialData: AvailabilityDoc
+  googleConnection: GoogleConnectionPublic | null
+}) {
   const [schedule, setSchedule] = useState<DaySchedule[]>(() =>
     DAY_ORDER.map((d) => {
       const found = initialData.weeklySchedule.find((x) => x.day === d);
@@ -322,48 +330,7 @@ export default function AvailabilityEditor({ initialData }: { initialData: Avail
 
           {activeTab === 'Calendar settings' && (
             <motion.div key="calendar-settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-              {/* UNCHANGED — copied verbatim from the old page.tsx */}
-              <div className="px-6 sm:px-10 py-8 border-b border-gray-100 bg-white/60">
-                <h2 className="text-2xl font-bold text-[#0B3558] tracking-tight">Connected Calendars</h2>
-              </div>
-              <div className="p-6 sm:px-10 sm:py-8">
-                <div className="flex items-center justify-between p-5 border border-gray-200 rounded-2xl mb-8 bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                      <Calendar className="w-6 h-6 text-slate-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-[#0B3558] text-lg">Google Calendar</h3>
-                      <p className="text-sm text-slate-500 font-medium mt-0.5">user@example.com</p>
-                    </div>
-                  </div>
-                  <button className="text-[#1A73E8] text-sm font-bold hover:underline px-4 py-2 hover:bg-blue-50 rounded-lg transition-colors">Edit</button>
-                </div>
-
-                <div className="mb-8">
-                  <h3 className="font-bold text-[#0B3558] mb-2 text-lg">Check for conflicts</h3>
-                  <p className="text-sm text-slate-500 mb-4">Calendry will check these calendars for conflicts to prevent double bookings.</p>
-                  <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 w-full max-w-md">
-                    <input type="checkbox" defaultChecked className="w-5 h-5 rounded text-[#1A73E8] border-gray-300 focus:ring-[#1A73E8]" />
-                    <span className="text-sm font-semibold text-[#0B3558]">user@example.com</span>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="font-bold text-[#0B3558] mb-2 text-lg">Add to calendar</h3>
-                  <p className="text-sm text-slate-500 mb-4">New events will be added to this calendar.</p>
-                  <select className="w-full max-w-md bg-white border border-gray-200 text-[#0B3558] font-semibold rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 focus:border-[#1A73E8] transition-all shadow-sm">
-                    <option>user@example.com</option>
-                  </select>
-                </div>
-
-                <div className="mt-8 pt-6 border-t border-gray-100">
-                  <button className="bg-[#1A73E8] hover:bg-[#155DB1] text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg flex items-center justify-center gap-2">
-                    <Check className="w-4 h-4" />
-                    Save changes
-                  </button>
-                </div>
-              </div>
+              <CalendarSettingsTab connection={googleConnection} />
             </motion.div>
           )}
 

@@ -26,7 +26,20 @@ export async function POST(req: NextRequest) {
 
       case 'user.deleted':
         if (evt.data.id) {
-          await serverClient.delete(docIdFor(evt.data.id))
+          const id = evt.data.id
+          const results = await Promise.allSettled([
+            serverClient.delete(`user.${id}`),
+            serverClient.delete(`availability.${id}`),
+            serverClient.delete(`gcal.${id}`),
+          ])
+          for (const r of results) {
+            if (r.status === 'rejected') {
+              const err = r.reason
+              if (err?.statusCode !== 404 && !/document.*not found/i.test(String(err))) {
+                console.error(`Sanity delete failed for user ${id}:`, err)
+              }
+            }
+          }
         }
         return Response.json({ ok: true })
 
