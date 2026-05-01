@@ -11,9 +11,9 @@ export default async function AvailabilityPage() {
   if (!clerkId) redirect('/')
 
   const id = `availability.${clerkId}`
-  let doc = await serverClient.getDocument<AvailabilityDoc>(id) as AvailabilityDoc | undefined
+  let doc = await serverClient.getDocument<AvailabilityDoc>(id)
   if (!doc) {
-    doc = (await serverClient.createIfNotExists({
+    doc = await serverClient.createIfNotExists({
       _id: id,
       _type: 'availabilityType',
       user: { _type: 'reference', _ref: `user.${clerkId}` },
@@ -22,7 +22,7 @@ export default async function AvailabilityPage() {
       minimumNotice: 240,
       bufferBefore: 0,
       bufferAfter: 0,
-    })) as AvailabilityDoc
+    })
   }
 
   return <AvailabilityEditor initialData={doc} />
