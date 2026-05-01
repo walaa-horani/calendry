@@ -10,7 +10,7 @@ const WEEKDAY_FROM_NAME: Record<string, DayCode> = {
   Mon: 'mon', Tue: 'tue', Wed: 'wed', Thu: 'thu', Fri: 'fri', Sat: 'sat', Sun: 'sun',
 }
 
-interface Window {
+interface TimeWindow {
   start: Date
   end: Date
 }
@@ -54,7 +54,7 @@ export function generateSlots(input: GenerateSlotsInput): Slot[] {
     const day = schedule.weeklySchedule.find((d) => d.day === code)
     if (!day || !day.enabled || day.intervals.length === 0) continue
 
-    const windows: Window[] = day.intervals.map((iv) => ({
+    const windows: TimeWindow[] = day.intervals.map((iv) => ({
       start: localToUtc(dateStr, iv.start, schedule.timezone),
       end: localToUtc(dateStr, iv.end, schedule.timezone),
     }))
@@ -74,5 +74,5 @@ export function generateSlots(input: GenerateSlotsInput): Slot[] {
     }
   }
 
-  return result.sort((a, b) => a.startUtc.localeCompare(b.startUtc))
+  return result.sort((a, b) => (a.startUtc < b.startUtc ? -1 : a.startUtc > b.startUtc ? 1 : 0))
 }
