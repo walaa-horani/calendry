@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Globe, Check, Calendar } from 'lucide-react';
 
 import type { AvailabilityDoc, DayCode, DaySchedule } from './types';
+import { saveSchedules } from './actions';
 
 const DAY_LABELS: Record<DayCode, string> = {
   sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat',
@@ -36,6 +37,35 @@ export default function AvailabilityEditor({ initialData }: { initialData: Avail
   const [bufferBefore, setBufferBefore] = useState<number>(initialData.bufferBefore);
   const [bufferAfter, setBufferAfter] = useState<number>(initialData.bufferAfter);
   const [activeTab, setActiveTab] = useState<Tab>('Schedules');
+
+  const [schedulesSnapshot, setSchedulesSnapshot] = useState<{ weeklySchedule: DaySchedule[]; timezone: string }>({
+    weeklySchedule: initialData.weeklySchedule,
+    timezone: initialData.timezone,
+  });
+  const [schedulesPending, startSchedulesTransition] = useTransition();
+  const [schedulesSavedAt, setSchedulesSavedAt] = useState<number | null>(null);
+  const [schedulesError, setSchedulesError] = useState<string | null>(null);
+
+  const isSchedulesDirty =
+    JSON.stringify({ weeklySchedule: schedule, timezone }) !==
+    JSON.stringify(schedulesSnapshot);
+
+  const onSaveSchedules = () => {
+    setSchedulesError(null);
+    startSchedulesTransition(async () => {
+      const result = await saveSchedules({ weeklySchedule: schedule, timezone });
+      if (result.ok) {
+        setSchedulesSnapshot({ weeklySchedule: schedule, timezone });
+        const ts = Date.now();
+        setSchedulesSavedAt(ts);
+        setTimeout(() => {
+          setSchedulesSavedAt((cur) => (cur === ts ? null : cur));
+        }, 2000);
+      } else {
+        setSchedulesError(result.error);
+      }
+    });
+  };
 
   const toggleDay = (dayIndex: number) => {
     setSchedule((prev) => {
@@ -139,10 +169,28 @@ export default function AvailabilityEditor({ initialData }: { initialData: Avail
                     <span className="font-medium">{timezone}</span>
                   </div>
                 </div>
-                <button className="bg-[#1A73E8] hover:bg-[#155DB1] text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg flex items-center justify-center gap-2">
-                  <Check className="w-4 h-4" />
-                  Save changes
-                </button>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-3">
+                    {schedulesSavedAt !== null && !schedulesPending && (
+                      <span className="text-sm font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">Saved</span>
+                    )}
+                    <button
+                      onClick={onSaveSchedules}
+                      disabled={!isSchedulesDirty || schedulesPending}
+                      className="bg-[#1A73E8] hover:bg-[#155DB1] disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    >
+                      {schedulesPending ? (
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                      Save changes
+                    </button>
+                  </div>
+                  {schedulesError && (
+                    <p className="text-sm font-medium text-red-600 bg-red-50 px-3 py-2 rounded-lg max-w-md">{schedulesError}</p>
+                  )}
+                </div>
               </div>
 
               <div className="p-6 sm:px-10 sm:py-8">
