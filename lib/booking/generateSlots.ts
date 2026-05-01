@@ -44,9 +44,46 @@ function localToUtc(dateStr: string, hhmm: string, timezone: string): Date {
   return fromZonedTime(`${dateStr}T${hhmm}:00`, timezone)
 }
 
+function subtractInterval(windows: TimeWindow[], cutStart: Date, cutEnd: Date): TimeWindow[] {
+  const out: TimeWindow[] = []
+  for (const w of windows) {
+    if (cutEnd <= w.start || cutStart >= w.end) {
+      out.push(w)
+      continue
+    }
+    if (cutStart > w.start) out.push({ start: w.start, end: cutStart })
+    if (cutEnd < w.end) out.push({ start: cutEnd, end: w.end })
+  }
+  return out
+}
+
+function trimBefore(windows: TimeWindow[], cutoff: Date): TimeWindow[] {
+  const out: TimeWindow[] = []
+  for (const w of windows) {
+    if (w.end <= cutoff) continue
+    if (w.start < cutoff) out.push({ start: cutoff, end: w.end })
+    else out.push(w)
+  }
+  return out
+}
+
+function trimAfter(windows: TimeWindow[], cutoff: Date): TimeWindow[] {
+  const out: TimeWindow[] = []
+  for (const w of windows) {
+    if (w.start >= cutoff) continue
+    if (w.end > cutoff) out.push({ start: w.start, end: cutoff })
+    else out.push(w)
+  }
+  return out
+}
+
 export function generateSlots(input: GenerateSlotsInput): Slot[] {
-  const { schedule, meeting, rangeStart, rangeEnd } = input
+  const { schedule, meeting, now, rangeStart, rangeEnd } = input
   const effBufAfter = meeting.bufferAfter ?? schedule.bufferAfter
+  const effMinNotice = meeting.minimumNotice ?? schedule.minimumNotice
+  const noticeCutoff = new Date(now.getTime() + effMinNotice * 60_000)
+  const windowEnd = new Date(now.getTime() + meeting.bookingWindowDays * 86_400_000)
+
   const result: Slot[] = []
 
   for (const dateStr of dateStringsInTz(rangeStart, rangeEnd, schedule.timezone)) {
@@ -54,10 +91,13 @@ export function generateSlots(input: GenerateSlotsInput): Slot[] {
     const day = schedule.weeklySchedule.find((d) => d.day === code)
     if (!day || !day.enabled || day.intervals.length === 0) continue
 
-    const windows: TimeWindow[] = day.intervals.map((iv) => ({
+    let windows: TimeWindow[] = day.intervals.map((iv) => ({
       start: localToUtc(dateStr, iv.start, schedule.timezone),
       end: localToUtc(dateStr, iv.end, schedule.timezone),
     }))
+
+    windows = trimBefore(windows, noticeCutoff)
+    windows = trimAfter(windows, windowEnd)
 
     for (const w of windows) {
       let cursor = w.start.getTime()
