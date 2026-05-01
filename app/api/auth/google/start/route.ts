@@ -8,11 +8,16 @@ import { buildAuthorizationUrl } from '@/lib/google/oauthClient'
 const STATE_COOKIE = 'gcal_oauth_state'
 const STATE_COOKIE_PATH = '/api/auth/google'
 const STATE_COOKIE_MAX_AGE_S = 300
+const SIGNING_KEY_BYTES = 32
 
 function loadSigningKey(): Buffer {
   const raw = process.env.OAUTH_STATE_SIGNING_KEY
   if (!raw) throw new Error('Missing OAUTH_STATE_SIGNING_KEY env var')
-  return Buffer.from(raw, 'base64')
+  const key = Buffer.from(raw, 'base64')
+  if (key.length !== SIGNING_KEY_BYTES) {
+    throw new Error(`OAUTH_STATE_SIGNING_KEY must decode to ${SIGNING_KEY_BYTES} bytes (got ${key.length})`)
+  }
+  return key
 }
 
 function signNonce(nonce: string): string {
