@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useTransition } from 'react';
+import React, { useEffect, useState, useTransition } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Globe, Check, Calendar } from 'lucide-react';
 
 import type { AvailabilityDoc, DayCode, DaySchedule } from './types';
-import { saveSchedules, saveAdvanced } from './actions';
+import { saveSchedules, saveAdvanced, bootstrapTimezoneIfDefault } from './actions';
 
 const DAY_LABELS: Record<DayCode, string> = {
   sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat',
@@ -31,7 +31,6 @@ export default function AvailabilityEditor({ initialData }: { initialData: Avail
       };
     })
   );
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [timezone, setTimezone] = useState<string>(initialData.timezone);
   const [minimumNotice, setMinimumNotice] = useState<number>(initialData.minimumNotice);
   const [bufferBefore, setBufferBefore] = useState<number>(initialData.bufferBefore);
@@ -100,6 +99,18 @@ export default function AvailabilityEditor({ initialData }: { initialData: Avail
       }
     });
   };
+
+  useEffect(() => {
+    if (timezone !== 'UTC') return;
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!detected || detected === 'UTC') return;
+    bootstrapTimezoneIfDefault(detected).then(() => {
+      setTimezone(detected);
+      setSchedulesSnapshot((prev) => ({ ...prev, timezone: detected }));
+    });
+    // Empty deps — fires once per mount. Idempotent thanks to the timezone !== 'UTC' guard.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleDay = (dayIndex: number) => {
     setSchedule((prev) => {
