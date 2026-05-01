@@ -149,3 +149,74 @@ describe('generateSlots — booking-window cutoff', () => {
     expect(slots.some((s) => s.startUtc.startsWith('2026-05-12'))).toBe(true)
   })
 })
+
+describe('generateSlots — existing bookings subtraction', () => {
+  it('removes a slot that exactly matches an existing booking', () => {
+    const input = baseInput()
+    input.existingBookings = [
+      { startUtc: '2026-05-05T16:30:00.000Z', endUtc: '2026-05-05T17:00:00.000Z' }, // 9:30 LA
+    ]
+    const slots = generateSlots(input)
+    expect(slots.map((s) => s.startUtc)).toEqual([
+      '2026-05-05T16:00:00.000Z',
+      '2026-05-05T17:00:00.000Z',
+      '2026-05-05T17:30:00.000Z',
+    ])
+  })
+
+  it('applies bufferBefore and bufferAfter when subtracting bookings', () => {
+    const input = baseInput()
+    input.schedule.bufferBefore = 15
+    input.schedule.bufferAfter = 15
+    input.existingBookings = [
+      { startUtc: '2026-05-05T17:00:00.000Z', endUtc: '2026-05-05T17:30:00.000Z' }, // 10:00 LA
+    ]
+    // Block = [16:45, 17:45]. Window 16–18.
+    // 9:00 (16:00) → ends 16:30, OK. 9:30 (16:30) → ends 17:00, but trim cuts windows: [16:00,16:45] & [17:45,18:00].
+    // From [16:00,16:45]: 16:00→16:30 OK; 16:30→17:00 NOT (17:00 > 16:45) → drop.
+    // From [17:45,18:00]: nothing fits 30 min.
+    const slots = generateSlots(input)
+    expect(slots.map((s) => s.startUtc)).toEqual(['2026-05-05T16:00:00.000Z'])
+  })
+
+  it('respects meeting-level buffer overrides', () => {
+    const input = baseInput()
+    input.schedule.bufferBefore = 60  // huge default
+    input.meeting.bufferBefore = 0    // overridden to nothing
+    input.meeting.bufferAfter = 0
+    input.existingBookings = [
+      { startUtc: '2026-05-05T17:00:00.000Z', endUtc: '2026-05-05T17:30:00.000Z' },
+    ]
+    const slots = generateSlots(input)
+    // Block stays [17:00,17:30] (no buffers). Same as exact-match case.
+    expect(slots).toHaveLength(3)
+  })
+})
+
+describe('generateSlots — maxBookingsPerDay', () => {
+  it('skips a date that has already reached its cap', () => {
+    const input = baseInput()
+    input.meeting.maxBookingsPerDay = 1
+    input.existingBookings = [
+      { startUtc: '2026-05-05T16:00:00.000Z', endUtc: '2026-05-05T16:30:00.000Z' }, // 9:00 LA
+    ]
+    const slots = generateSlots(input)
+    expect(slots).toEqual([])
+  })
+
+  it('does not skip when other dates are below the cap', () => {
+    const input = baseInput()
+    input.meeting.maxBookingsPerDay = 1
+    input.existingBookings = [
+      { startUtc: '2026-05-05T16:00:00.000Z', endUtc: '2026-05-05T16:30:00.000Z' },
+    ]
+    const ws = input.schedule.weeklySchedule
+    ws.find((d) => d.day === 'wed')!.enabled = true
+    ws.find((d) => d.day === 'wed')!.intervals = [{ start: '09:00', end: '10:00' }]
+    input.rangeStart = new Date('2026-05-05T00:00:00Z')
+    input.rangeEnd = new Date('2026-05-06T23:59:59Z')
+    const slots = generateSlots(input)
+    expect(slots).toHaveLength(2)  // only Wed produces; Tue is capped
+    for (const s of slots) expect(s.startUtc.startsWith('2026-05-06')).toBe(true)
+  })
+})

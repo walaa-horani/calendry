@@ -79,6 +79,7 @@ function trimAfter(windows: TimeWindow[], cutoff: Date): TimeWindow[] {
 
 export function generateSlots(input: GenerateSlotsInput): Slot[] {
   const { schedule, meeting, now, rangeStart, rangeEnd } = input
+  const effBufBefore = meeting.bufferBefore ?? schedule.bufferBefore
   const effBufAfter = meeting.bufferAfter ?? schedule.bufferAfter
   const effMinNotice = meeting.minimumNotice ?? schedule.minimumNotice
   const noticeCutoff = new Date(now.getTime() + effMinNotice * 60_000)
@@ -91,10 +92,23 @@ export function generateSlots(input: GenerateSlotsInput): Slot[] {
     const day = schedule.weeklySchedule.find((d) => d.day === code)
     if (!day || !day.enabled || day.intervals.length === 0) continue
 
+    if (meeting.maxBookingsPerDay !== undefined) {
+      const onThisDate = input.existingBookings.filter(
+        (b) => formatInTimeZone(new Date(b.startUtc), schedule.timezone, 'yyyy-MM-dd') === dateStr,
+      ).length
+      if (onThisDate >= meeting.maxBookingsPerDay) continue
+    }
+
     let windows: TimeWindow[] = day.intervals.map((iv) => ({
       start: localToUtc(dateStr, iv.start, schedule.timezone),
       end: localToUtc(dateStr, iv.end, schedule.timezone),
     }))
+
+    for (const b of input.existingBookings) {
+      const blockStart = new Date(new Date(b.startUtc).getTime() - effBufBefore * 60_000)
+      const blockEnd = new Date(new Date(b.endUtc).getTime() + effBufAfter * 60_000)
+      windows = subtractInterval(windows, blockStart, blockEnd)
+    }
 
     windows = trimBefore(windows, noticeCutoff)
     windows = trimAfter(windows, windowEnd)
