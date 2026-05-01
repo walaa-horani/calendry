@@ -104,10 +104,15 @@ export default function AvailabilityEditor({ initialData }: { initialData: Avail
     if (timezone !== 'UTC') return;
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!detected || detected === 'UTC') return;
+    let cancelled = false;
     bootstrapTimezoneIfDefault(detected).then(() => {
+      if (cancelled) return;
       setTimezone(detected);
       setSchedulesSnapshot((prev) => ({ ...prev, timezone: detected }));
     });
+    return () => {
+      cancelled = true;
+    };
     // Empty deps — fires once per mount. Idempotent thanks to the timezone !== 'UTC' guard.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
