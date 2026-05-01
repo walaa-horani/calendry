@@ -14,7 +14,27 @@
       "Bash(git merge *)",
       "Bash(git cherry-pick *)",
       "Bash(git reset *)",
-      "Bash(git -C /c/dev/calendry rev-parse --abbrev-ref HEAD)"
+      "Bash(git -C /c/dev/calendry rev-parse --abbrev-ref HEAD)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm ls *)",
+      "Bash(pnpm install *)",
+      "Bash(git pull *)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(git -C c:/dev/calendry diff 80137c6..7e59e7d)",
+      "Bash(git -C c:/dev/calendry log 80137c6..7e59e7d --oneline)",
+      "Bash(git -C c:/dev/calendry log -1 --format='%B' 7e59e7d)",
+      "Bash(git -C c:/dev/calendry diff --stat 80137c6..7e59e7d)",
+      "Bash(echo \"---tsc exit: $?---\")",
+      "Bash(echo \"---eslint exit: $?---\")",
+      "Bash(node -e \"const h = require\\('./node_modules/eslint-plugin-react-hooks'\\); console.log\\(JSON.stringify\\(h.configs.recommended.rules, null, 2\\)\\);\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(pnpm build *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(npx eslint *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Walaa\\.claude\\projects\\c--dev-calendry\\memory",
+      "\\tmp"
     ]
   }
 }
