@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, Globe, Check, Calendar } from 'lucide-react';
 
 import type { AvailabilityDoc, DayCode, DaySchedule } from './types';
-import { saveSchedules } from './actions';
+import { saveSchedules, saveAdvanced } from './actions';
 
 const DAY_LABELS: Record<DayCode, string> = {
   sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat',
@@ -63,6 +63,40 @@ export default function AvailabilityEditor({ initialData }: { initialData: Avail
         }, 2000);
       } else {
         setSchedulesError(result.error);
+      }
+    });
+  };
+
+  const [advancedSnapshot, setAdvancedSnapshot] = useState<{
+    minimumNotice: number;
+    bufferBefore: number;
+    bufferAfter: number;
+  }>({
+    minimumNotice: initialData.minimumNotice,
+    bufferBefore: initialData.bufferBefore,
+    bufferAfter: initialData.bufferAfter,
+  });
+  const [advancedPending, startAdvancedTransition] = useTransition();
+  const [advancedSavedAt, setAdvancedSavedAt] = useState<number | null>(null);
+  const [advancedError, setAdvancedError] = useState<string | null>(null);
+
+  const isAdvancedDirty =
+    JSON.stringify({ minimumNotice, bufferBefore, bufferAfter }) !==
+    JSON.stringify(advancedSnapshot);
+
+  const onSaveAdvanced = () => {
+    setAdvancedError(null);
+    startAdvancedTransition(async () => {
+      const result = await saveAdvanced({ minimumNotice, bufferBefore, bufferAfter });
+      if (result.ok) {
+        setAdvancedSnapshot({ minimumNotice, bufferBefore, bufferAfter });
+        const ts = Date.now();
+        setAdvancedSavedAt(ts);
+        setTimeout(() => {
+          setAdvancedSavedAt((cur) => (cur === ts ? null : cur));
+        }, 2000);
+      } else {
+        setAdvancedError(result.error);
       }
     });
   };
@@ -369,10 +403,28 @@ export default function AvailabilityEditor({ initialData }: { initialData: Avail
                 </div>
 
                 <div className="mt-8 pt-6 border-t border-gray-100">
-                  <button className="bg-[#1A73E8] hover:bg-[#155DB1] text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg flex items-center justify-center gap-2">
-                    <Check className="w-4 h-4" />
-                    Save changes
-                  </button>
+                  <div className="flex flex-col items-start gap-2">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={onSaveAdvanced}
+                        disabled={!isAdvancedDirty || advancedPending}
+                        className="bg-[#1A73E8] hover:bg-[#155DB1] disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 text-sm shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                      >
+                        {advancedPending ? (
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                        Save changes
+                      </button>
+                      {advancedSavedAt !== null && !advancedPending && (
+                        <span className="text-sm font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">Saved</span>
+                      )}
+                    </div>
+                    {advancedError && (
+                      <p className="text-sm font-medium text-red-600 bg-red-50 px-3 py-2 rounded-lg max-w-md">{advancedError}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>
