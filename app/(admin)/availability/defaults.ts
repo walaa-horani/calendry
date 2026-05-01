@@ -1,3 +1,4 @@
+import 'server-only'
 import { randomUUID } from 'crypto'
 import type { DaySchedule } from './types'
 
