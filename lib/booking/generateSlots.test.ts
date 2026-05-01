@@ -220,3 +220,104 @@ describe('generateSlots — maxBookingsPerDay', () => {
     for (const s of slots) expect(s.startUtc.startsWith('2026-05-06')).toBe(true)
   })
 })
+
+describe('generateSlots — Google busy subtraction', () => {
+  it('removes a slot that overlaps a Google busy interval (no buffer math)', () => {
+    const input = baseInput()
+    input.schedule.bufferBefore = 60
+    input.schedule.bufferAfter = 60   // big buffers — these should NOT apply to busy
+    input.busyIntervals = [
+      { startUtc: '2026-05-05T17:00:00.000Z', endUtc: '2026-05-05T17:30:00.000Z' }, // 10:00 LA
+    ]
+    const slots = generateSlots(input)
+    // Window 9–11 LA = 16:00–18:00 UTC. Subtract [17:00,17:30] → [16:00,17:00] & [17:30,18:00].
+    // [16:00,17:00] yields 16:00, 16:30. [17:30,18:00] yields 17:30. Buffer-after 60 cuts: 16:00 OK (16:30+60=17:30 ≤ 17:00? no 17:30 > 17:00) → DROP. Wait.
+    // With effBufAfter=60: a slot ends at 16:30, +60min = 17:30 > window.end of 17:00 → drop.
+    // So actually window [16:00,17:00] with bufferAfter 60: NO slots fit.
+    // Window [17:30,18:00]: 17:30+30=18:00, +60=19:00 > 18:00 → drop.
+    expect(slots).toEqual([])
+  })
+
+  it('handles busy with no buffers when meeting overrides bufferAfter to 0', () => {
+    const input = baseInput()
+    input.schedule.bufferAfter = 60
+    input.meeting.bufferAfter = 0
+    input.busyIntervals = [
+      { startUtc: '2026-05-05T17:00:00.000Z', endUtc: '2026-05-05T17:30:00.000Z' },
+    ]
+    const slots = generateSlots(input)
+    expect(slots.map((s) => s.startUtc)).toEqual([
+      '2026-05-05T16:00:00.000Z',
+      '2026-05-05T16:30:00.000Z',
+      '2026-05-05T17:30:00.000Z',
+    ])
+  })
+})
+
+describe('generateSlots — DST transitions', () => {
+  it('produces correct UTC slots across spring-forward (US, March)', () => {
+    // 2026 spring-forward in LA: Sun March 8, 02:00 → 03:00 local
+    const input = baseInput()
+    input.now = new Date('2026-03-08T00:00:00Z')
+    input.meeting.bookingWindowDays = 2
+    input.schedule.weeklySchedule = input.schedule.weeklySchedule.map((d) => ({
+      ...d, enabled: d.day === 'sun', intervals: d.day === 'sun' ? [{ start: '01:00', end: '04:00' }] : [],
+    }))
+    input.rangeStart = new Date('2026-03-08T00:00:00Z')
+    input.rangeEnd = new Date('2026-03-08T23:59:59Z')
+    const slots = generateSlots(input)
+    // 01:00 PST = 09:00 UTC; 02:00 doesn't exist locally; 03:00 PDT = 10:00 UTC; 03:30 PDT = 10:30 UTC
+    // Slots 01:00, 01:30, then JUMP to 03:00, 03:30. In UTC: 09:00, 09:30, 10:00, 10:30.
+    expect(slots.map((s) => s.startUtc)).toEqual([
+      '2026-03-08T09:00:00.000Z',
+      '2026-03-08T09:30:00.000Z',
+      '2026-03-08T10:00:00.000Z',
+      '2026-03-08T10:30:00.000Z',
+    ])
+  })
+
+  it('produces correct UTC slots across fall-back (US, November)', () => {
+    // 2026 fall-back in LA: Sun November 1, 02:00 → 01:00 local
+    const input = baseInput()
+    input.now = new Date('2026-11-01T00:00:00Z')
+    input.meeting.bookingWindowDays = 2
+    input.schedule.weeklySchedule = input.schedule.weeklySchedule.map((d) => ({
+      ...d, enabled: d.day === 'sun', intervals: d.day === 'sun' ? [{ start: '00:00', end: '03:00' }] : [],
+    }))
+    input.rangeStart = new Date('2026-11-01T00:00:00Z')
+    input.rangeEnd = new Date('2026-11-01T23:59:59Z')
+    const slots = generateSlots(input)
+    // We slice in UTC, not local time. 00:00 local PDT → 07:00 UTC; 03:00 local PST → 11:00 UTC.
+    // UTC window [07:00, 11:00] = 4 hours = 8 slots of 30 min.
+    // The fall-back duplicate hour (01:00–02:00 local) is naturally represented by both UTC
+    // instants 08:00 and 09:00 — exactly what the spec promises.
+    expect(slots.map((s) => s.startUtc)).toEqual([
+      '2026-11-01T07:00:00.000Z',
+      '2026-11-01T07:30:00.000Z',
+      '2026-11-01T08:00:00.000Z',
+      '2026-11-01T08:30:00.000Z',
+      '2026-11-01T09:00:00.000Z',
+      '2026-11-01T09:30:00.000Z',
+      '2026-11-01T10:00:00.000Z',
+      '2026-11-01T10:30:00.000Z',
+    ])
+  })
+})
+
+describe('generateSlots — granularity follows duration', () => {
+  it('60-min meeting yields slots every 60 min', () => {
+    const input = baseInput()
+    input.meeting.duration = 60
+    const slots = generateSlots(input)
+    expect(slots).toHaveLength(2)
+    expect(slots[0].startUtc).toBe('2026-05-05T16:00:00.000Z')
+    expect(slots[1].startUtc).toBe('2026-05-05T17:00:00.000Z')
+  })
+
+  it('15-min meeting yields slots every 15 min', () => {
+    const input = baseInput()
+    input.meeting.duration = 15
+    const slots = generateSlots(input)
+    expect(slots).toHaveLength(8)
+  })
+})

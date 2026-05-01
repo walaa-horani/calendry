@@ -110,6 +110,10 @@ export function generateSlots(input: GenerateSlotsInput): Slot[] {
       windows = subtractInterval(windows, blockStart, blockEnd)
     }
 
+    for (const b of input.busyIntervals) {
+      windows = subtractInterval(windows, new Date(b.startUtc), new Date(b.endUtc))
+    }
+
     windows = trimBefore(windows, noticeCutoff)
     windows = trimAfter(windows, windowEnd)
 
