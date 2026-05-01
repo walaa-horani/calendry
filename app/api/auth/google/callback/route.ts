@@ -26,9 +26,11 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url)
   const error = url.searchParams.get('error')
-  if (error === 'access_denied') {
+  if (error) {
     await clearStateCookie()
-    redirect('/availability?connected=cancelled')
+    if (error === 'access_denied') redirect('/availability?connected=cancelled')
+    console.error('Google OAuth error:', error)
+    redirect('/availability?connected=error&reason=oauth')
   }
 
   const code = url.searchParams.get('code')
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
   const cookie = cookieStore.get(STATE_COOKIE)?.value
 
   // Always clear the cookie regardless of outcome.
-  const failState = async () => {
+  const failState = async (): Promise<never> => {
     await clearStateCookie()
     redirect('/availability?connected=error&reason=state')
   }
@@ -47,6 +49,8 @@ export async function GET(req: NextRequest) {
     await failState()
   }
 
+  // TS doesn't narrow control flow through `await fn(): Promise<never>`, so
+  // we keep non-null assertions on the locals that failState() guarantees.
   const dotIdx = cookie!.indexOf('.')
   if (dotIdx <= 0) await failState()
   const nonce = cookie!.slice(0, dotIdx)
@@ -78,7 +82,7 @@ export async function GET(req: NextRequest) {
     calendars = await fetchCalendarListWithToken(tokens.access_token)
   } catch (err) {
     console.error('Google user/calendar fetch failed:', err)
-    redirect('/availability?connected=error&reason=exchange')
+    redirect('/availability?connected=error&reason=fetch')
   }
 
   const primaryCalendar = calendars.find((c) => c.primary)

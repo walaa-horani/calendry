@@ -20,6 +20,11 @@ export async function GET() {
   const cookieValue = `${nonce}.${signature}`
 
   const cookieStore = await cookies()
+  // TODO(security): the state cookie is browser-bound but not Clerk-user-bound.
+  // If the user signs out and a different Clerk user signs in within the 5-min
+  // window before the callback resolves, the callback will write the connection
+  // under the wrong clerkId. Mitigation: bind clerkId into the signed nonce
+  // payload (sign `${nonce}.${clerkId}` and verify both match).
   cookieStore.set(STATE_COOKIE, cookieValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
