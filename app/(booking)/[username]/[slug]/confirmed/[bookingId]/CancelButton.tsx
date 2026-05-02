@@ -28,16 +28,16 @@ export default function CancelButton({ bookingToken }: { bookingToken: string })
   }
 
   return (
-    <div>
+    <div className="text-center">
       <button
         type="button"
         onClick={onClick}
         disabled={pending}
-        className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+        className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
       >
         {pending ? 'Cancelling…' : 'Cancel booking'}
       </button>
-      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
     </div>
   )
 }

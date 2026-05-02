@@ -61,22 +61,24 @@ export default async function PublicBookingPage({ params }: PageProps) {
   if (!data || !data.meeting || !data.availability) notFound()
 
   return (
-    <main className="mx-auto max-w-5xl p-6">
-      <BookingPicker
-        username={username}
-        slug={slug}
-        meeting={{
-          title: data.meeting.title,
-          duration: data.meeting.duration,
-          location: data.meeting.location,
-        }}
-        host={{
-          displayName: data.displayName,
-          avatarUrl: data.avatarUrl,
-          welcomeMessage: data.welcomeMessage,
-        }}
-        hostTimezone={data.availability.timezone}
-      />
+    <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <BookingPicker
+          username={username}
+          slug={slug}
+          meeting={{
+            title: data.meeting.title,
+            duration: data.meeting.duration,
+            location: data.meeting.location,
+          }}
+          host={{
+            displayName: data.displayName,
+            avatarUrl: data.avatarUrl,
+            welcomeMessage: data.welcomeMessage,
+          }}
+          hostTimezone={data.availability.timezone}
+        />
+      </div>
     </main>
   )
 }

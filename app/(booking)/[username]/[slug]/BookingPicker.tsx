@@ -3,9 +3,51 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Globe,
+  Link as LinkIcon,
+  MapPin,
+  Phone,
+  Video,
+} from 'lucide-react'
 
 import { getAvailability, createBooking } from './actions'
 import type { Slot } from '@/lib/booking/types'
+
+const LOCATION_LABELS: Record<string, string> = {
+  zoom: 'Zoom',
+  googleMeet: 'Google Meet',
+  phone: 'Phone',
+  inPerson: 'In person',
+  customUrl: 'Custom URL',
+}
+
+function locationIcon(type: string) {
+  switch (type) {
+    case 'zoom':
+    case 'googleMeet':
+      return Video
+    case 'phone':
+      return Phone
+    case 'inPerson':
+      return MapPin
+    case 'customUrl':
+      return LinkIcon
+    default:
+      return Video
+  }
+}
+
+function hostInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
 
 interface MeetingSummary {
   title: string
@@ -114,51 +156,84 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
   })()
   const slots = selectedDate ? (slotsByDate[selectedDate] ?? []) : []
 
+  const LocIcon = locationIcon(meeting.location.type)
+  const locationLabel = LOCATION_LABELS[meeting.location.type] ?? meeting.location.type
+  const isFormPhase = phase === 'form' || phase === 'submitting'
+
   return (
-    <div className="grid gap-6 md:grid-cols-[260px_1fr_220px]">
-      <aside>
+    <div className="grid gap-8 md:grid-cols-[280px_1fr_240px] md:divide-x md:divide-slate-200">
+      {/* Meta column */}
+      <aside className="md:pr-6">
         {host.avatarUrl ? (
-          <img src={host.avatarUrl} alt="" className="h-12 w-12 rounded-full" />
+          <img
+            src={host.avatarUrl}
+            alt={host.displayName}
+            className="h-16 w-16 rounded-full object-cover ring-1 ring-slate-200"
+          />
         ) : (
-          <div className="h-12 w-12 rounded-full bg-gray-200" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-lg font-semibold text-white">
+            {hostInitials(host.displayName)}
+          </div>
         )}
-        <h2 className="mt-3 text-lg font-semibold">{host.displayName}</h2>
-        <p className="text-sm font-medium">{meeting.title}</p>
-        <p className="text-sm text-gray-600">{meeting.duration} min · {meeting.location.type}</p>
-        {host.welcomeMessage ? <p className="mt-3 text-sm text-gray-700">{host.welcomeMessage}</p> : null}
+        <p className="mt-4 text-xs font-medium uppercase tracking-wider text-slate-500">
+          {host.displayName}
+        </p>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
+          {meeting.title}
+        </h2>
+        <ul className="mt-4 space-y-2 text-sm text-slate-600">
+          <li className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-slate-400" />
+            {meeting.duration} min
+          </li>
+          <li className="flex items-center gap-2">
+            <LocIcon className="h-4 w-4 text-slate-400" />
+            {locationLabel}
+          </li>
+        </ul>
+        {host.welcomeMessage ? (
+          <p className="mt-4 text-sm leading-relaxed text-slate-700">{host.welcomeMessage}</p>
+        ) : null}
       </aside>
 
-      <section>
+      {/* Calendar column */}
+      <section className="md:px-6">
         <header className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setMonthCursor(({ year, month }) => {
-              const m = month === 1 ? 12 : month - 1
-              const y = month === 1 ? year - 1 : year
-              return { year: y, month: m }
-            })}
-            className="px-2 py-1 text-sm hover:underline"
-          >
-            ← prev
-          </button>
-          <h3 className="text-base font-medium">{monthLabel}</h3>
-          <button
-            type="button"
-            onClick={() => setMonthCursor(({ year, month }) => {
-              const m = month === 12 ? 1 : month + 1
-              const y = month === 12 ? year + 1 : year
-              return { year: y, month: m }
-            })}
-            className="px-2 py-1 text-sm hover:underline"
-          >
-            next →
-          </button>
+          <h3 className="text-base font-semibold text-slate-900">{monthLabel}</h3>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Previous month"
+              onClick={() => setMonthCursor(({ year, month }) => {
+                const m = month === 1 ? 12 : month - 1
+                const y = month === 1 ? year - 1 : year
+                return { year: y, month: m }
+              })}
+              className="grid h-8 w-8 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next month"
+              onClick={() => setMonthCursor(({ year, month }) => {
+                const m = month === 12 ? 1 : month + 1
+                const y = month === 12 ? year + 1 : year
+                return { year: y, month: m }
+              })}
+              className="grid h-8 w-8 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </header>
 
-        <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs text-gray-500">
-          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i}>{d}</div>)}
+        <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-medium uppercase tracking-wider text-slate-400">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+            <div key={d}>{d.slice(0, 1)}</div>
+          ))}
         </div>
-        <div className="mt-1 grid grid-cols-7 gap-1">
+        <div className="mt-2 grid grid-cols-7 gap-1">
           {cells.map((c) => {
             const has = (slotsByDate[c.dateStr]?.length ?? 0) > 0
             const disabled = !c.inMonth || !has
@@ -169,42 +244,54 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
                 type="button"
                 disabled={disabled}
                 onClick={() => setSelectedDate(c.dateStr)}
+                aria-label={c.dateStr}
                 className={[
-                  'aspect-square rounded text-sm',
-                  disabled ? 'cursor-not-allowed text-gray-300' : 'hover:bg-blue-50',
-                  selected ? 'bg-blue-600 text-white hover:bg-blue-600' : '',
-                  has && !selected ? 'font-medium text-blue-700' : '',
+                  'relative aspect-square rounded-full text-sm transition-colors',
+                  disabled
+                    ? 'cursor-not-allowed text-slate-300'
+                    : 'cursor-pointer hover:bg-blue-50',
+                  selected
+                    ? 'bg-blue-600 font-semibold text-white hover:bg-blue-600'
+                    : has
+                      ? 'bg-blue-50/40 font-semibold text-blue-700'
+                      : 'text-slate-700',
                 ].filter(Boolean).join(' ')}
               >
                 {Number(c.dateStr.split('-')[2])}
+                {has && !selected && c.inMonth ? (
+                  <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-blue-600" />
+                ) : null}
               </button>
             )
           })}
         </div>
 
         {!pending && Object.keys(slotsByDate).length === 0 && !loadError ? (
-          <p className="mt-3 text-sm text-gray-500">
-            Nothing available this month — try{' '}
+          <p className="mt-4 text-sm text-slate-500">
+            Nothing available this month —{' '}
             <button
               type="button"
-              className="text-blue-700 hover:underline"
+              className="font-medium text-blue-700 hover:underline"
               onClick={() => setMonthCursor(({ year, month }) => {
                 const m = month === 12 ? 1 : month + 1
                 const y = month === 12 ? year + 1 : year
                 return { year: y, month: m }
               })}
             >
-              next month →
+              try next month →
             </button>
           </p>
         ) : null}
 
-        {pending ? <p className="mt-3 text-sm text-gray-500">Loading…</p> : null}
-        {loadError ? <p className="mt-3 text-sm text-red-600">Couldn&apos;t load times. Please try again.</p> : null}
+        {pending ? <p className="mt-4 text-sm text-slate-500">Loading…</p> : null}
+        {loadError ? (
+          <p className="mt-4 text-sm text-red-600">Couldn&apos;t load times. Please try again.</p>
+        ) : null}
       </section>
 
-      <section>
-        {phase === 'form' || phase === 'submitting' ? (
+      {/* Slot list / form column */}
+      <section className="md:pl-6">
+        {isFormPhase ? (
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -228,7 +315,6 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
                   setPhase('pick')
                   setSelectedSlot(null)
                   setSelectedDate(null)
-                  // refetch this month
                   const midMonth = new Date(Date.UTC(monthCursor.year, monthCursor.month - 1, 15, 12))
                   const start = startOfMonthUtc(midMonth, hostTimezone)
                   const end = endOfMonthUtc(midMonth, hostTimezone)
@@ -251,76 +337,80 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
                 setPhase('form')
               })
             }}
-            className="space-y-3"
+            className="space-y-4"
           >
-            <div>
-              <p className="text-sm text-gray-600">
-                {selectedSlot ? formatInTimeZone(selectedSlot.startUtc, inviteeTz, 'EEE MMM d, h:mm a') : ''}
-              </p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <button
                 type="button"
                 onClick={() => { setSelectedSlot(null); setPhase('pick'); setFormError(null) }}
-                className="text-xs text-blue-700 hover:underline"
+                className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
               >
-                ← change time
+                <ArrowLeft className="h-3 w-3" /> change time
               </button>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                {selectedSlot ? formatInTimeZone(selectedSlot.startUtc, inviteeTz, 'EEE MMM d, h:mm a') : ''}
+              </p>
+              <p className="text-xs text-slate-500">{inviteeTz}</p>
             </div>
             <label className="block">
-              <span className="text-sm font-medium">Name</span>
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-600">Name</span>
               <input
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </label>
             <label className="block">
-              <span className="text-sm font-medium">Email</span>
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-600">Email</span>
               <input
                 required
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </label>
             <label className="block">
-              <span className="text-sm font-medium">Notes (optional)</span>
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-600">Notes (optional)</span>
               <textarea
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </label>
             {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
             <button
               type="submit"
               disabled={phase === 'submitting'}
-              className="w-full rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:bg-blue-300"
+              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:bg-blue-300"
             >
               {phase === 'submitting' ? 'Confirming…' : 'Confirm booking'}
             </button>
           </form>
         ) : selectedDate ? (
           <>
-            <h4 className="text-sm font-medium">
+            <h4 className="text-sm font-semibold text-slate-900">
               {(() => {
                 const [y, m, d] = selectedDate.split('-').map(Number)
-                return formatInTimeZone(new Date(Date.UTC(y, m - 1, d, 12)), 'UTC', 'EEE MMM d')
+                return formatInTimeZone(new Date(Date.UTC(y, m - 1, d, 12)), 'UTC', 'EEEE, MMM d')
               })()}
             </h4>
-            <p className="text-xs text-gray-500">{inviteeTz}</p>
+            <p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500">
+              <Globe className="h-3 w-3" />
+              {inviteeTz}
+            </p>
             {slots.length === 0 ? (
-              <p className="mt-3 text-sm text-gray-600">No times available — try another date.</p>
+              <p className="mt-4 text-sm text-slate-500">No times available — try another date.</p>
             ) : (
-              <ul className="mt-3 space-y-2">
+              <ul className="mt-4 space-y-2">
                 {slots.map((s) => (
                   <li key={s.startUtc}>
                     <button
                       type="button"
                       onClick={() => { setSelectedSlot(s); setPhase('form') }}
-                      className="w-full rounded border border-blue-600 px-3 py-2 text-sm text-blue-700 hover:bg-blue-600 hover:text-white"
+                      className="w-full rounded-lg border border-blue-600 bg-white px-4 py-2.5 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-600 hover:text-white"
                     >
                       {formatInTimeZone(s.startUtc, inviteeTz, 'h:mm a')}
                     </button>
@@ -330,7 +420,12 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
             )}
           </>
         ) : (
-          <p className="text-sm text-gray-500">Pick a date →</p>
+          <div className="grid h-full place-items-center text-center">
+            <p className="text-sm text-slate-400">
+              <span className="block text-3xl">←</span>
+              Pick a date
+            </p>
+          </div>
         )}
       </section>
     </div>
