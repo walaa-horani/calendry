@@ -1,7 +1,7 @@
 import 'server-only'
 import { notFound } from 'next/navigation'
 
-import { client } from '@/sanity/lib/client'
+import { serverClient } from '@/sanity/lib/serverClient'
 import BookingPicker from './BookingPicker'
 
 interface PageProps {
@@ -57,7 +57,7 @@ const HOST_QUERY = `
 
 export default async function PublicBookingPage({ params }: PageProps) {
   const { username, slug } = await params
-  const data = await client.fetch<JoinResult | null>(HOST_QUERY, { username, slug })
+  const data = await serverClient.fetch<JoinResult | null>(HOST_QUERY, { username, slug })
   if (!data || !data.meeting || !data.availability) notFound()
 
   return (
