@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { formatInTimeZone } from 'date-fns-tz'
 import { nanoid } from 'nanoid'
 
@@ -282,6 +283,14 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
 
     const stored = await serverClient.createIfNotExists(newDoc)
     if (stored.bookingToken !== bookingToken) {
+      // The deterministic _id collided with an existing doc for the same slot.
+      // If that doc was cancelled, the slot is genuinely free (the slot engine
+      // ignores cancelled bookings) — overwrite with our new booking.
+      if ((stored as { status?: string }).status === 'cancelled') {
+        await serverClient.createOrReplace(newDoc)
+        return { ok: true, bookingToken }
+      }
+      // Otherwise we lost the race to a confirmed/rescheduled booking.
       return { ok: false, error: 'slot_taken' }
     }
 
@@ -326,6 +335,7 @@ export async function cancelBooking(bookingToken: string): Promise<CancelBooking
       })
       .commit()
 
+    revalidatePath(`/${doc.hostUsernameSnapshot}`, 'layout')
     return { ok: true }
   } catch (err) {
     console.error('cancelBooking failed:', err)

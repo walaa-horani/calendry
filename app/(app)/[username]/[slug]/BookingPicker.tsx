@@ -61,7 +61,14 @@ function calendarGrid(monthCursor: Date, tz: string): Array<{ dateStr: string; i
 }
 
 export default function BookingPicker({ username, slug, meeting, host, hostTimezone }: BookingPickerProps) {
-  const [inviteeTz, setInviteeTz] = useState<string>(hostTimezone)
+  const [inviteeTz] = useState<string>(() => {
+    if (typeof window === 'undefined') return hostTimezone
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || hostTimezone
+    } catch {
+      return hostTimezone
+    }
+  })
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
   const [phase, setPhase] = useState<'pick' | 'form' | 'submitting'>('pick')
   const [formError, setFormError] = useState<string | null>(null)
@@ -85,21 +92,12 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-      if (tz) setInviteeTz(tz)
-    } catch {
-      // keep host fallback
-    }
-  }, [])
-
-  useEffect(() => {
-    setLoadError(null)
-    setSelectedDate(null)
     const midMonth = new Date(Date.UTC(monthCursor.year, monthCursor.month - 1, 15, 12))
     const start = startOfMonthUtc(midMonth, hostTimezone)
     const end = endOfMonthUtc(midMonth, hostTimezone)
     startTransition(async () => {
+      setLoadError(null)
+      setSelectedDate(null)
       const result = await getAvailability(username, slug, start.toISOString(), end.toISOString())
       if (result.ok) setSlotsByDate(result.slotsByDate)
       else setLoadError(result.error)

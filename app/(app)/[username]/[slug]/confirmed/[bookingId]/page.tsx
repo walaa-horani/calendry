@@ -50,6 +50,9 @@ export default async function ConfirmedPage({ params }: PageProps) {
 
   const isCancelled = data.status === 'cancelled'
   const isRescheduled = data.status === 'rescheduled'
+  // Server component: a single per-request "now" snapshot is the right
+  // semantics here. The lint rule fires generically on Date primitives.
+  // eslint-disable-next-line react-hooks/purity
   const isPast = Date.parse(data.startTime) < Date.now()
   const startLocal = formatInTimeZone(data.startTime, data.inviteeTimezone, 'EEE MMM d, yyyy · h:mm a')
   const endLocal = formatInTimeZone(data.endTime, data.inviteeTimezone, 'h:mm a')
