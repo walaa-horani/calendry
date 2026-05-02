@@ -184,6 +184,23 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
           })}
         </div>
 
+        {!pending && Object.keys(slotsByDate).length === 0 && !loadError ? (
+          <p className="mt-3 text-sm text-gray-500">
+            Nothing available this month — try{' '}
+            <button
+              type="button"
+              className="text-blue-700 hover:underline"
+              onClick={() => setMonthCursor(({ year, month }) => {
+                const m = month === 12 ? 1 : month + 1
+                const y = month === 12 ? year + 1 : year
+                return { year: y, month: m }
+              })}
+            >
+              next month →
+            </button>
+          </p>
+        ) : null}
+
         {pending ? <p className="mt-3 text-sm text-gray-500">Loading…</p> : null}
         {loadError ? <p className="mt-3 text-sm text-red-600">Couldn&apos;t load times. Please try again.</p> : null}
       </section>
