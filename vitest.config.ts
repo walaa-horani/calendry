@@ -11,5 +11,6 @@ export default defineConfig({
   test: {
     include: ['lib/**/*.test.ts'],
     environment: 'node',
+    pool: 'forks',
   },
 })
