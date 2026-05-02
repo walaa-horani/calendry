@@ -1,13 +1,13 @@
 import 'server-only'
 import { notFound } from 'next/navigation'
 
-import { serverClient } from '@/sanity/lib/serverClient'
+import { client } from '@/sanity/lib/client'
 
 interface PageProps {
   params: Promise<{ username: string; slug: string }>
 }
 
-interface JoinResult {
+export interface JoinResult {
   _id: string
   clerkId: string
   displayName: string
@@ -56,7 +56,7 @@ const HOST_QUERY = `
 
 export default async function PublicBookingPage({ params }: PageProps) {
   const { username, slug } = await params
-  const data = await serverClient.fetch<JoinResult | null>(HOST_QUERY, { username, slug })
+  const data = await client.fetch<JoinResult | null>(HOST_QUERY, { username, slug })
   if (!data || !data.meeting || !data.availability) notFound()
 
   return (
