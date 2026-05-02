@@ -33,7 +33,10 @@ export async function fetchFreeBusy(input: FreeBusyInput): Promise<BusyInterval[
   if (!res.ok) throw new Error(`Google freeBusy failed: ${res.status}`)
   const json = (await res.json()) as FreeBusyResponse
   const merged: BusyInterval[] = []
-  for (const cal of Object.values(json.calendars ?? {})) {
+  for (const [calId, cal] of Object.entries(json.calendars ?? {})) {
+    if (cal.errors?.length) {
+      console.warn(`freeBusy: calendar ${calId} returned errors`, cal.errors)
+    }
     for (const b of cal.busy ?? []) {
       merged.push({ startUtc: b.start, endUtc: b.end })
     }

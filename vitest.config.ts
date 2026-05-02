@@ -11,6 +11,6 @@ export default defineConfig({
   test: {
     include: ['lib/**/*.test.ts'],
     environment: 'node',
-    pool: 'forks',
+    pool: 'forks',  // worker_threads unstable on Windows with Vitest 4; forks is more reliable
   },
 })

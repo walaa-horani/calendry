@@ -50,6 +50,8 @@ describe('fetchFreeBusy', () => {
     const body = JSON.parse(init.body as string)
     expect(body.items).toEqual([{ id: 'primary' }])
     expect(body.timeMin).toBe('2026-05-05T00:00:00.000Z')
+    expect(body.timeMax).toBe('2026-05-06T00:00:00.000Z')
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
   })
 
   it('merges overlapping intervals across calendars', async () => {
@@ -73,6 +75,28 @@ describe('fetchFreeBusy', () => {
     expect(result).toEqual([
       { startUtc: '2026-05-05T17:00:00Z', endUtc: '2026-05-05T18:00:00Z' },
       { startUtc: '2026-05-05T20:00:00Z', endUtc: '2026-05-05T20:30:00Z' },
+    ])
+  })
+
+  it('does not extend last.endUtc when current is fully contained', async () => {
+    const mockRes = new Response(
+      JSON.stringify({
+        calendars: {
+          a: { busy: [{ start: '2026-05-05T17:00:00Z', end: '2026-05-05T18:00:00Z' }] },
+          b: { busy: [{ start: '2026-05-05T17:15:00Z', end: '2026-05-05T17:45:00Z' }] },
+        },
+      }),
+      { status: 200 },
+    )
+    vi.mocked(globalThis.fetch).mockResolvedValue(mockRes)
+    const result = await fetchFreeBusy({
+      accessToken: 'tok',
+      calendarIds: ['a', 'b'],
+      timeMinUtc: '2026-05-05T00:00:00Z',
+      timeMaxUtc: '2026-05-06T00:00:00Z',
+    })
+    expect(result).toEqual([
+      { startUtc: '2026-05-05T17:00:00Z', endUtc: '2026-05-05T18:00:00Z' },
     ])
   })
 
