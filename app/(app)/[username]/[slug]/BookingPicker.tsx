@@ -212,12 +212,14 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
                   setFormError('Sorry, that time was just booked. Pick another.')
                   setPhase('pick')
                   setSelectedSlot(null)
+                  setSelectedDate(null)
                   // refetch this month
                   const midMonth = new Date(Date.UTC(monthCursor.year, monthCursor.month - 1, 15, 12))
                   const start = startOfMonthUtc(midMonth, hostTimezone)
                   const end = endOfMonthUtc(midMonth, hostTimezone)
                   const refresh = await getAvailability(username, slug, start.toISOString(), end.toISOString())
                   if (refresh.ok) setSlotsByDate(refresh.slotsByDate)
+                  else setLoadError(refresh.error)
                 } else if (result.error === 'not_found') {
                   setFormError('This event is no longer available.')
                   setPhase('pick')
@@ -228,7 +230,11 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
                   setFormError('Something went wrong. Please try again.')
                   setPhase('form')
                 }
-              })()
+              })().catch((err) => {
+                console.error('createBooking unexpected throw:', err)
+                setFormError('Something went wrong. Please try again.')
+                setPhase('form')
+              })
             }}
             className="space-y-3"
           >
