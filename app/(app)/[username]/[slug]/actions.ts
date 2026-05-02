@@ -1,6 +1,7 @@
 'use server'
 
 import { formatInTimeZone } from 'date-fns-tz'
+import { nanoid } from 'nanoid'
 
 import { serverClient } from '@/sanity/lib/serverClient'
 import { generateSlots } from '@/lib/booking/generateSlots'
@@ -39,6 +40,7 @@ interface HostJoin {
     _id: string
     title: string
     duration: number
+    location: { type: string; value?: string; instructions?: string }
     bufferBefore: number | null
     bufferAfter: number | null
     minimumNotice: number | null
@@ -148,6 +150,144 @@ export async function getAvailability(
     return { ok: true, slotsByDate }
   } catch (err) {
     console.error('getAvailability failed:', err)
+    return { ok: false, error: 'unknown' }
+  }
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export interface CreateBookingInput {
+  username: string
+  slug: string
+  startUtc: string
+  inviteeName: string
+  inviteeEmail: string
+  inviteeNotes?: string
+  inviteeTimezone: string
+}
+
+export type CreateBookingResult =
+  | { ok: true; bookingToken: string }
+  | { ok: false; error: 'not_found' | 'slot_taken' | 'invalid_input' | 'unknown' }
+
+export async function createBooking(input: CreateBookingInput): Promise<CreateBookingResult> {
+  try {
+    const name = input.inviteeName.trim()
+    const email = input.inviteeEmail.trim().toLowerCase()
+    const notes = (input.inviteeNotes ?? '').slice(0, 10_000)
+    if (!name || name.length > 200) return { ok: false, error: 'invalid_input' }
+    if (!EMAIL_REGEX.test(email) || email.length > 320) return { ok: false, error: 'invalid_input' }
+    if (!input.startUtc || Number.isNaN(Date.parse(input.startUtc))) {
+      return { ok: false, error: 'invalid_input' }
+    }
+    if (!input.inviteeTimezone) return { ok: false, error: 'invalid_input' }
+
+    const data = await serverClient.fetch<HostJoin | null>(HOST_QUERY, {
+      username: input.username,
+      slug: input.slug,
+    })
+    if (!data || !data.meeting || !data.availability) return { ok: false, error: 'not_found' }
+
+    const startMs = Date.parse(input.startUtc)
+    const endMs = startMs + data.meeting.duration * 60_000
+    const dayMs = 86_400_000
+    const rangeStart = new Date(startMs - dayMs).toISOString()
+    const rangeEnd = new Date(endMs + dayMs).toISOString()
+
+    const existing = await serverClient.fetch<BusyInterval[]>(
+      `*[_type == "bookingType" && host._ref == $hostId && status == "confirmed" && startTime < $rangeEnd && endTime > $rangeStart]{ "startUtc": startTime, "endUtc": endTime }`,
+      { hostId: data._id, rangeStart, rangeEnd },
+    )
+
+    let busy: BusyInterval[] = []
+    let calIds: string[] = []
+    try {
+      const gcal = await serverClient.getDocument<GcalDoc>(`gcal.${data.clerkId}`)
+      calIds = (gcal?.calendars ?? [])
+        .filter((c) => c.conflictCheck === true)
+        .map((c) => c.calendarId)
+    } catch (err) {
+      console.error('createBooking: failed to load gcal document:', err)
+    }
+    if (calIds.length > 0) {
+      try {
+        const accessToken = await getValidAccessToken(data.clerkId)
+        busy = await fetchFreeBusy({
+          accessToken,
+          calendarIds: calIds,
+          timeMinUtc: rangeStart,
+          timeMaxUtc: rangeEnd,
+        })
+      } catch (err) {
+        if (
+          !(err instanceof GoogleConnectionMissingError) &&
+          !(err instanceof GoogleConnectionRevokedError)
+        ) {
+          console.error('createBooking FreeBusy fetch failed:', err)
+        }
+      }
+    }
+
+    const slotInput: GenerateSlotsInput = {
+      schedule: {
+        timezone: data.availability.timezone,
+        weeklySchedule: data.availability.weeklySchedule,
+        minimumNotice: data.availability.minimumNotice,
+        bufferBefore: data.availability.bufferBefore,
+        bufferAfter: data.availability.bufferAfter,
+      },
+      meeting: {
+        duration: data.meeting.duration,
+        bufferBefore: data.meeting.bufferBefore ?? undefined,
+        bufferAfter: data.meeting.bufferAfter ?? undefined,
+        minimumNotice: data.meeting.minimumNotice ?? undefined,
+        maxBookingsPerDay: data.meeting.maxBookingsPerDay ?? undefined,
+        bookingWindowDays: data.meeting.bookingWindowDays,
+      },
+      existingBookings: existing,
+      busyIntervals: busy,
+      now: new Date(),
+      rangeStart: new Date(rangeStart),
+      rangeEnd: new Date(rangeEnd),
+    }
+    const slots = generateSlots(slotInput)
+    const desired = new Date(startMs).toISOString()
+    if (!slots.some((s) => s.startUtc === desired)) {
+      return { ok: false, error: 'slot_taken' }
+    }
+
+    const docId = `booking.${data.clerkId}.${startMs}`
+    const bookingToken = nanoid(24)
+
+    const newDoc = {
+      _id: docId,
+      _type: 'bookingType' as const,
+      host: { _type: 'reference' as const, _ref: data._id },
+      meetingType: { _type: 'reference' as const, _ref: data.meeting._id },
+      bookingToken,
+      meetingTitleSnapshot: data.meeting.title,
+      meetingDurationSnapshot: data.meeting.duration,
+      hostNameSnapshot: data.displayName,
+      hostUsernameSnapshot: input.username,
+      locationSnapshot: data.meeting.location,
+      startTime: desired,
+      endTime: new Date(endMs).toISOString(),
+      inviteeTimezone: input.inviteeTimezone,
+      inviteeName: name,
+      inviteeEmail: email,
+      ...(notes ? { inviteeNotes: notes } : {}),
+      status: 'confirmed' as const,
+      createdAt: new Date().toISOString(),
+    }
+
+    const stored = await serverClient.createIfNotExists(newDoc)
+    if (stored.bookingToken !== bookingToken) {
+      return { ok: false, error: 'slot_taken' }
+    }
+
+    return { ok: true, bookingToken }
+  } catch (err) {
+    console.error('createBooking failed:', err)
     return { ok: false, error: 'unknown' }
   }
 }

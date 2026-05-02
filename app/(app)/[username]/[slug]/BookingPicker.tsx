@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
-import { getAvailability } from './actions'
+import { getAvailability, createBooking } from './actions'
 import type { Slot } from '@/lib/booking/types'
 
 interface MeetingSummary {
@@ -61,6 +62,13 @@ function calendarGrid(monthCursor: Date, tz: string): Array<{ dateStr: string; i
 
 export default function BookingPicker({ username, slug, meeting, host, hostTimezone }: BookingPickerProps) {
   const [inviteeTz, setInviteeTz] = useState<string>(hostTimezone)
+  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
+  const [phase, setPhase] = useState<'pick' | 'form' | 'submitting'>('pick')
+  const [formError, setFormError] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [notes, setNotes] = useState('')
+  const router = useRouter()
   const [monthCursor, setMonthCursor] = useState<{ year: number; month: number }>(() => {
     const now = new Date()
     // Use the host tz's idea of "current month" so the picker opens on a sensible page.
@@ -181,7 +189,99 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
       </section>
 
       <section>
-        {selectedDate ? (
+        {phase === 'form' || phase === 'submitting' ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!selectedSlot) return
+              setFormError(null)
+              setPhase('submitting')
+              ;(async () => {
+                const result = await createBooking({
+                  username,
+                  slug,
+                  startUtc: selectedSlot.startUtc,
+                  inviteeName: name,
+                  inviteeEmail: email,
+                  inviteeNotes: notes || undefined,
+                  inviteeTimezone: inviteeTz,
+                })
+                if (result.ok) {
+                  router.push(`/${username}/${slug}/confirmed/${result.bookingToken}`)
+                } else if (result.error === 'slot_taken') {
+                  setFormError('Sorry, that time was just booked. Pick another.')
+                  setPhase('pick')
+                  setSelectedSlot(null)
+                  // refetch this month
+                  const midMonth = new Date(Date.UTC(monthCursor.year, monthCursor.month - 1, 15, 12))
+                  const start = startOfMonthUtc(midMonth, hostTimezone)
+                  const end = endOfMonthUtc(midMonth, hostTimezone)
+                  const refresh = await getAvailability(username, slug, start.toISOString(), end.toISOString())
+                  if (refresh.ok) setSlotsByDate(refresh.slotsByDate)
+                } else if (result.error === 'not_found') {
+                  setFormError('This event is no longer available.')
+                  setPhase('pick')
+                } else if (result.error === 'invalid_input') {
+                  setFormError('Please double-check your name and email.')
+                  setPhase('form')
+                } else {
+                  setFormError('Something went wrong. Please try again.')
+                  setPhase('form')
+                }
+              })()
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <p className="text-sm text-gray-600">
+                {selectedSlot ? formatInTimeZone(selectedSlot.startUtc, inviteeTz, 'EEE MMM d, h:mm a') : ''}
+              </p>
+              <button
+                type="button"
+                onClick={() => { setSelectedSlot(null); setPhase('pick'); setFormError(null) }}
+                className="text-xs text-blue-700 hover:underline"
+              >
+                ← change time
+              </button>
+            </div>
+            <label className="block">
+              <span className="text-sm font-medium">Name</span>
+              <input
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium">Email</span>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium">Notes (optional)</span>
+              <textarea
+                rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+            </label>
+            {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
+            <button
+              type="submit"
+              disabled={phase === 'submitting'}
+              className="w-full rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:bg-blue-300"
+            >
+              {phase === 'submitting' ? 'Confirming…' : 'Confirm booking'}
+            </button>
+          </form>
+        ) : selectedDate ? (
           <>
             <h4 className="text-sm font-medium">
               {(() => {
@@ -198,6 +298,7 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
                   <li key={s.startUtc}>
                     <button
                       type="button"
+                      onClick={() => { setSelectedSlot(s); setPhase('form') }}
                       className="w-full rounded border border-blue-600 px-3 py-2 text-sm text-blue-700 hover:bg-blue-600 hover:text-white"
                     >
                       {formatInTimeZone(s.startUtc, inviteeTz, 'h:mm a')}
