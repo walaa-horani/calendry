@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { formatInTimeZone } from 'date-fns-tz'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { getAvailability } from './actions'
 import type { Slot } from '@/lib/booking/types'
@@ -28,14 +28,19 @@ export interface BookingPickerProps {
 
 function startOfMonthUtc(d: Date, tz: string): Date {
   const ymd = formatInTimeZone(d, tz, 'yyyy-MM')
-  return new Date(`${ymd}-01T00:00:00Z`)
+  return fromZonedTime(`${ymd}-01T00:00:00`, tz)
 }
 
 function endOfMonthUtc(d: Date, tz: string): Date {
   const ymd = formatInTimeZone(d, tz, 'yyyy-MM')
   const [y, m] = ymd.split('-').map(Number)
-  const next = new Date(Date.UTC(y, m, 1))   // first day of next month UTC
-  return new Date(next.getTime() - 1)
+  // Last day of the month in calendar arithmetic. JS Date(year, month, 0)
+  // returns the last day of the previous month; passing the next month gives
+  // us the last day of the current month.
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const dd = String(lastDay).padStart(2, '0')
+  const mm = String(m).padStart(2, '0')
+  return fromZonedTime(`${y}-${mm}-${dd}T23:59:59.999`, tz)
 }
 
 function calendarGrid(monthCursor: Date, tz: string): Array<{ dateStr: string; inMonth: boolean }> {
@@ -56,7 +61,16 @@ function calendarGrid(monthCursor: Date, tz: string): Array<{ dateStr: string; i
 
 export default function BookingPicker({ username, slug, meeting, host, hostTimezone }: BookingPickerProps) {
   const [inviteeTz, setInviteeTz] = useState<string>(hostTimezone)
-  const [monthCursor, setMonthCursor] = useState<Date>(() => new Date())
+  const [monthCursor, setMonthCursor] = useState<{ year: number; month: number }>(() => {
+    const now = new Date()
+    // Use the host tz's idea of "current month" so the picker opens on a sensible page.
+    const [y, m] = (
+      typeof Intl !== 'undefined'
+        ? formatInTimeZone(now, hostTimezone, 'yyyy-MM')
+        : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+    ).split('-').map(Number)
+    return { year: y, month: m }
+  })
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [slotsByDate, setSlotsByDate] = useState<Record<string, Slot[]>>({})
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -74,17 +88,24 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
   useEffect(() => {
     setLoadError(null)
     setSelectedDate(null)
-    const start = startOfMonthUtc(monthCursor, hostTimezone)
-    const end = endOfMonthUtc(monthCursor, hostTimezone)
+    const midMonth = new Date(Date.UTC(monthCursor.year, monthCursor.month - 1, 15, 12))
+    const start = startOfMonthUtc(midMonth, hostTimezone)
+    const end = endOfMonthUtc(midMonth, hostTimezone)
     startTransition(async () => {
       const result = await getAvailability(username, slug, start.toISOString(), end.toISOString())
       if (result.ok) setSlotsByDate(result.slotsByDate)
       else setLoadError(result.error)
     })
-  }, [monthCursor, username, slug, hostTimezone])
+  }, [monthCursor.year, monthCursor.month, username, slug, hostTimezone])
 
-  const cells = useMemo(() => calendarGrid(monthCursor, hostTimezone), [monthCursor, hostTimezone])
-  const monthLabel = formatInTimeZone(monthCursor, hostTimezone, 'MMMM yyyy')
+  const cells = useMemo(() => {
+    const midMonth = new Date(Date.UTC(monthCursor.year, monthCursor.month - 1, 15, 12))
+    return calendarGrid(midMonth, hostTimezone)
+  }, [monthCursor.year, monthCursor.month, hostTimezone])
+  const monthLabel = (() => {
+    const midMonth = new Date(Date.UTC(monthCursor.year, monthCursor.month - 1, 15, 12))
+    return formatInTimeZone(midMonth, hostTimezone, 'MMMM yyyy')
+  })()
   const slots = selectedDate ? (slotsByDate[selectedDate] ?? []) : []
 
   return (
@@ -105,7 +126,11 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
         <header className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))}
+            onClick={() => setMonthCursor(({ year, month }) => {
+              const m = month === 1 ? 12 : month - 1
+              const y = month === 1 ? year - 1 : year
+              return { year: y, month: m }
+            })}
             className="px-2 py-1 text-sm hover:underline"
           >
             ← prev
@@ -113,7 +138,11 @@ export default function BookingPicker({ username, slug, meeting, host, hostTimez
           <h3 className="text-base font-medium">{monthLabel}</h3>
           <button
             type="button"
-            onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))}
+            onClick={() => setMonthCursor(({ year, month }) => {
+              const m = month === 12 ? 1 : month + 1
+              const y = month === 12 ? year + 1 : year
+              return { year: y, month: m }
+            })}
             className="px-2 py-1 text-sm hover:underline"
           >
             next →

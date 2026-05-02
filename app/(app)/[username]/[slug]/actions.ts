@@ -87,12 +87,17 @@ export async function getAvailability(
     )
 
     let busy: BusyInterval[] = []
+    let calIds: string[] = []
     try {
       const gcal = await serverClient.getDocument<GcalDoc>(`gcal.${data.clerkId}`)
-      const calIds = (gcal?.calendars ?? [])
+      calIds = (gcal?.calendars ?? [])
         .filter((c) => c.conflictCheck === true)
         .map((c) => c.calendarId)
-      if (calIds.length > 0) {
+    } catch (err) {
+      console.error('Failed to load gcal document; proceeding with empty busy list:', err)
+    }
+    if (calIds.length > 0) {
+      try {
         const accessToken = await getValidAccessToken(data.clerkId)
         busy = await fetchFreeBusy({
           accessToken,
@@ -100,15 +105,14 @@ export async function getAvailability(
           timeMinUtc: rangeStartUtc,
           timeMaxUtc: rangeEndUtc,
         })
+      } catch (err) {
+        if (
+          !(err instanceof GoogleConnectionMissingError) &&
+          !(err instanceof GoogleConnectionRevokedError)
+        ) {
+          console.error('FreeBusy fetch failed; proceeding with empty busy list:', err)
+        }
       }
-    } catch (err) {
-      if (
-        !(err instanceof GoogleConnectionMissingError) &&
-        !(err instanceof GoogleConnectionRevokedError)
-      ) {
-        console.error('FreeBusy fetch failed; proceeding with empty busy list:', err)
-      }
-      busy = []
     }
 
     const input: GenerateSlotsInput = {
