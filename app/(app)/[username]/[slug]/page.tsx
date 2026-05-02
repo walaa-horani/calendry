@@ -2,6 +2,7 @@ import 'server-only'
 import { notFound } from 'next/navigation'
 
 import { client } from '@/sanity/lib/client'
+import BookingPicker from './BookingPicker'
 
 interface PageProps {
   params: Promise<{ username: string; slug: string }>
@@ -61,10 +62,21 @@ export default async function PublicBookingPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto max-w-5xl p-6">
-      <h1 className="text-2xl font-semibold">{data.meeting.title}</h1>
-      <p className="text-sm text-gray-600">
-        {data.displayName} · {data.meeting.duration} min
-      </p>
+      <BookingPicker
+        username={username}
+        slug={slug}
+        meeting={{
+          title: data.meeting.title,
+          duration: data.meeting.duration,
+          location: data.meeting.location,
+        }}
+        host={{
+          displayName: data.displayName,
+          avatarUrl: data.avatarUrl,
+          welcomeMessage: data.welcomeMessage,
+        }}
+        hostTimezone={data.availability.timezone}
+      />
     </main>
   )
 }
