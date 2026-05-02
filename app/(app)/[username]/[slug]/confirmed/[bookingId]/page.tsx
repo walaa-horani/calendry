@@ -2,7 +2,7 @@ import 'server-only'
 import { notFound } from 'next/navigation'
 import { formatInTimeZone } from 'date-fns-tz'
 
-import { client } from '@/sanity/lib/client'
+import { serverClient } from '@/sanity/lib/serverClient'
 import CancelButton from './CancelButton'
 
 interface PageProps {
@@ -38,13 +38,18 @@ const BOOKING_QUERY = `
 
 export default async function ConfirmedPage({ params }: PageProps) {
   const { username, bookingId } = await params
-  const data = await client.fetch<BookingView | null>(BOOKING_QUERY, { bookingToken: bookingId })
+  const data = await serverClient.fetch<BookingView | null>(BOOKING_QUERY, { bookingToken: bookingId })
   if (!data) notFound()
 
+  // Note: the [slug] segment is intentionally not verified. The bookingToken
+  // (~143 bits entropy) is the security primitive; the username check is
+  // defense in depth against URL bookmarks/typos. Adding a slug check would
+  // require adding meetingSlugSnapshot to bookingType and is deferred.
   // Defense: URL-spliced username must match the snapshot.
   if (data.hostUsernameSnapshot !== username) notFound()
 
-  const isCancelled = data.status !== 'confirmed'
+  const isCancelled = data.status === 'cancelled'
+  const isRescheduled = data.status === 'rescheduled'
   const isPast = Date.parse(data.startTime) < Date.now()
   const startLocal = formatInTimeZone(data.startTime, data.inviteeTimezone, 'EEE MMM d, yyyy · h:mm a')
   const endLocal = formatInTimeZone(data.endTime, data.inviteeTimezone, 'h:mm a')
@@ -53,6 +58,8 @@ export default async function ConfirmedPage({ params }: PageProps) {
     <main className="mx-auto max-w-md p-6">
       {isCancelled ? (
         <h1 className="text-xl font-medium text-gray-500">✕ This booking was cancelled</h1>
+      ) : isRescheduled ? (
+        <h1 className="text-xl font-medium text-gray-500">↻ This booking was rescheduled</h1>
       ) : (
         <h1 className="text-xl font-medium text-green-700">✓ You&apos;re booked</h1>
       )}
@@ -68,13 +75,13 @@ export default async function ConfirmedPage({ params }: PageProps) {
         <p className="mt-3 text-gray-500">For: {data.inviteeEmail}</p>
       </div>
 
-      {!isCancelled && !isPast ? (
+      {!isCancelled && !isRescheduled && !isPast ? (
         <div className="mt-4">
           <CancelButton bookingToken={data.bookingToken} />
         </div>
       ) : null}
 
-      {isPast && !isCancelled ? (
+      {isPast && !isCancelled && !isRescheduled ? (
         <p className="mt-4 text-sm text-gray-500">This meeting has already taken place.</p>
       ) : null}
     </main>

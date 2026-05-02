@@ -18,6 +18,7 @@ export default function CancelButton({ bookingToken }: { bookingToken: string })
         router.refresh()
       } else if (result.error === 'past_booking') {
         setError('Cannot cancel — meeting has already started.')
+        router.refresh()
       } else if (result.error === 'not_found') {
         setError('Booking not found.')
       } else {
