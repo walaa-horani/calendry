@@ -34,6 +34,14 @@ export const bookingType = defineType({
       group: 'refs',
       validation: (rule) => rule.required(),
     }),
+    defineField({
+      name: 'bookingToken',
+      type: 'string',
+      description: 'Unguessable public token used in the confirmation URL. Set server-side at booking time.',
+      group: 'refs',
+      readOnly: true,
+      validation: (rule) => rule.required().min(20).max(40),
+    }),
 
     defineField({
       name: 'meetingTitleSnapshot',
