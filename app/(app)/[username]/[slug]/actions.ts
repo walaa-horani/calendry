@@ -291,3 +291,44 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     return { ok: false, error: 'unknown' }
   }
 }
+
+export type CancelBookingResult =
+  | { ok: true }
+  | { ok: false; error: 'not_found' | 'already_cancelled' | 'past_booking' | 'unknown' }
+
+export async function cancelBooking(bookingToken: string): Promise<CancelBookingResult> {
+  try {
+    if (!bookingToken || bookingToken.length < 20 || bookingToken.length > 40) {
+      return { ok: false, error: 'not_found' }
+    }
+    const doc = await serverClient.fetch<{
+      _id: string
+      status: string
+      startTime: string
+      hostUsernameSnapshot: string
+      meetingTitleSnapshot: string
+    } | null>(
+      `*[_type == "bookingType" && bookingToken == $bookingToken][0]{
+        _id, status, startTime, hostUsernameSnapshot, meetingTitleSnapshot
+      }`,
+      { bookingToken },
+    )
+    if (!doc) return { ok: false, error: 'not_found' }
+    if (doc.status !== 'confirmed') return { ok: false, error: 'already_cancelled' }
+    if (Date.parse(doc.startTime) < Date.now()) return { ok: false, error: 'past_booking' }
+
+    await serverClient
+      .patch(doc._id)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date().toISOString(),
+        cancellationReason: 'Cancelled by invitee',
+      })
+      .commit()
+
+    return { ok: true }
+  } catch (err) {
+    console.error('cancelBooking failed:', err)
+    return { ok: false, error: 'unknown' }
+  }
+}
